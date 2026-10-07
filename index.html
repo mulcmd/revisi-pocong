@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Pocong Hunter: Dark Night (Multiplayer Edition)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Poppins:wght@400;600;800&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            touch-action: none;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+            background-color: #050508;
+            color: #fff;
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        .font-horror {
+            font-family: 'Creepster', cursive;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        @keyframes redGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(220, 38, 38, 0.4); }
+            50% { box-shadow: 0 0 25px rgba(220, 38, 38, 0.8); }
+        }
+        .glow-btn {
+            animation: redGlow 2s infinite;
+        }
+
+        #rotate-device-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 5, 8, 0.98);
+            z-index: 100;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        @media screen and (orientation: portrait) {
+            #rotate-device-overlay {
+                display: flex;
+            }
+        }
+    </style>
+</head>
+<body class="bg-black text-white select-none">
+
+    <!-- WARNING OVERLAY FOR PORTRAIT -->
+    <div id="rotate-device-overlay">
+        <div class="text-amber-500 text-6xl mb-4 animate-bounce">
+            <i class="fa-solid fa-mobile-screen-button rotate-90"></i>
+        </div>
+        <h2 class="text-2xl font-bold font-horror text-red-500 mb-2">PUTAR PERANGKAT ANDA!</h2>
+        <p class="text-sm text-slate-300 max-w-xs">Game ini wajib dimainkan dalam posisi <strong>Landscape</strong> (Mendatar) untuk pengalaman terbaik.</p>
+    </div>
+
+    <div id="game-container">
+        <!-- Main Game Canvas -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- TOP HUD OVERLAY -->
+        <div id="hud-overlay" class="absolute top-0 left-0 w-full p-4 flex justify-between items-start pointer-events-none hidden z-10">
+            <!-- Left Stats: Player 1 -->
+            <div class="flex flex-col gap-1 bg-slate-900/80 p-3 rounded-xl border border-cyan-500/50 backdrop-blur-md min-w-[160px] md:min-w-[200px]">
+                <div class="text-xs font-bold text-cyan-400 mb-1"><i class="fa-solid fa-user mr-1"></i> PLAYER 1</div>
+                <div>
+                    <div class="flex justify-between text-[10px] font-bold">
+                        <span class="text-red-400">HP</span>
+                        <span id="p1-hp-text">100 / 100</span>
+                    </div>
+                    <div class="w-full bg-gray-800 h-2.5 rounded-full overflow-hidden border border-gray-700">
+                        <div id="p1-hp-bar" class="bg-gradient-to-r from-cyan-600 to-cyan-400 h-full w-full"></div>
+                    </div>
+                </div>
+                <div class="text-[10px] text-slate-300 mt-1">SCORE: <strong id="score-val" class="text-yellow-400">0</strong></div>
+            </div>
+
+            <!-- Middle Stats: Player 2 (Hanya muncul jika mode Multiplayer) -->
+            <div id="p2-hud" class="hidden flex-col gap-1 bg-slate-900/80 p-3 rounded-xl border border-purple-500/50 backdrop-blur-md min-w-[160px] md:min-w-[200px]">
+                <div class="text-xs font-bold text-purple-400 mb-1"><i class="fa-solid fa-user-plus mr-1"></i> PLAYER 2</div>
+                <div>
+                    <div class="flex justify-between text-[10px] font-bold">
+                        <span class="text-red-400">HP</span>
+                        <span id="p2-hp-text">100 / 100</span>
+                    </div>
+                    <div class="w-full bg-gray-800 h-2.5 rounded-full overflow-hidden border border-gray-700">
+                        <div id="p2-hp-bar" class="bg-gradient-to-r from-purple-600 to-purple-400 h-full w-full"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Controls: Stage Title & Buttons -->
+            <div class="flex gap-2 items-center pointer-events-auto">
+                <div class="bg-slate-900/80 px-3 py-2 rounded-xl border border-slate-700/50 text-right backdrop-blur-md hidden sm:block">
+                    <div class="text-[10px] text-slate-400">STAGE</div>
+                    <div id="stage-title" class="text-xs font-bold text-amber-400">Desa Angker</div>
+                </div>
+                <button id="in-fullscreen-btn" class="bg-slate-800/80 hover:bg-slate-700 text-white w-10 h-10 rounded-xl border border-slate-600 flex items-center justify-center transition active:scale-95" title="Full Screen">
+                    <i class="fa-solid fa-expand"></i>
+                </button>
+                <button id="pause-btn" class="bg-slate-800/80 hover:bg-slate-700 text-white w-10 h-10 rounded-xl border border-slate-600 flex items-center justify-center transition active:scale-95" title="Pause">
+                    <i class="fa-solid fa-pause"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ON-SCREEN MOBILE CONTROLS -->
+        <div id="mobile-controls" class="absolute bottom-4 left-0 w-full px-6 flex justify-between items-end pointer-events-none z-10 hidden">
+            <div class="flex gap-3 pointer-events-auto">
+                <button id="btn-left" class="w-14 h-14 bg-slate-900/80 border-2 border-slate-700 active:bg-slate-700/80 rounded-2xl flex items-center justify-center text-xl text-white shadow-lg active:scale-95">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <button id="btn-right" class="w-14 h-14 bg-slate-900/80 border-2 border-slate-700 active:bg-slate-700/80 rounded-2xl flex items-center justify-center text-xl text-white shadow-lg active:scale-95">
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+            <div class="flex gap-3 pointer-events-auto">
+                <button id="btn-jump" class="w-14 h-14 bg-emerald-900/80 border-2 border-emerald-600 active:bg-emerald-700/80 rounded-2xl flex items-center justify-center text-lg text-emerald-300 shadow-lg active:scale-95">
+                    <i class="fa-solid fa-arrow-up"></i>
+                </button>
+                <button id="btn-attack" class="w-14 h-14 bg-red-900/80 border-2 border-red-600 active:bg-red-700/80 rounded-2xl flex items-center justify-center text-xl text-red-300 shadow-lg active:scale-95">
+                    <i class="fa-solid fa-crosshairs"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- UI MODAL CONTAINER -->
+        <div id="modal-overlay" class="absolute inset-0 flex items-center justify-center bg-black/85 backdrop-blur-md z-20 transition-all duration-300">
+            
+            <!-- MAIN MENU MODAL -->
+            <div id="menu-modal" class="glass-panel p-6 md:p-8 rounded-3xl max-w-md w-11/12 text-center border border-red-900/50 shadow-2xl flex flex-col items-center relative">
+                <!-- Top Actions on Menu -->
+                <button id="menu-fullscreen-btn" class="absolute top-4 right-4 bg-slate-800/80 hover:bg-slate-700 text-slate-300 w-9 h-9 rounded-xl border border-slate-700 flex items-center justify-center transition active:scale-95" title="Full Screen">
+                    <i class="fa-solid fa-expand"></i>
+                </button>
+
+                <div class="text-red-600 text-5xl md:text-6xl mb-2 animate-bounce">
+                    <i class="fa-solid fa-ghost"></i>
+                </div>
+                <h1 class="text-3xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-amber-500 to-red-600 font-horror tracking-wider mb-1">
+                    POCONG HUNTER
+                </h1>
+                <p class="text-[10px] md:text-xs text-slate-400 mb-5 uppercase tracking-widest">Edisi Multiplayer v2.5</p>
+
+                <div class="flex flex-col gap-3 w-full">
+                    <button id="start-solo-btn" class="glow-btn bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-3 px-6 rounded-xl transition transform active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-user"></i> MAIN SOLO (1 PLAYER)
+                    </button>
+                    <button id="start-coop-btn" class="bg-gradient-to-r from-purple-700 to-indigo-600 hover:from-purple-600 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition transform active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-users"></i> MAIN MULTIPLAYER (2 PLAYERS)
+                    </button>
+                    <button id="how-to-play-btn" class="bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-semibold py-2.5 px-6 rounded-xl border border-slate-700 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-circle-question"></i> CARA BERMAIN
+                    </button>
+                </div>
+            </div>
+
+            <!-- CARA BERMAIN MODAL -->
+            <div id="howto-modal" class="glass-panel p-6 rounded-3xl max-w-lg w-11/12 border border-slate-800 shadow-2xl hidden">
+                <h2 class="text-2xl font-bold text-amber-400 mb-4 text-center font-horror tracking-wide">KONTROL PERMAINAN</h2>
+                <div class="space-y-3 text-xs md:text-sm text-slate-300 mb-6">
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-cyan-500/30">
+                        <p class="font-bold text-cyan-400 mb-1">PLAYER 1 (Cyan):</p>
+                        <p>• Bergerak: <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300">A</kbd> / <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300">D</kbd></p>
+                        <p>• Lompat: <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300">W</kbd></p>
+                        <p>• Serang: <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300">F</kbd> / Spasi</p>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-purple-500/30">
+                        <p class="font-bold text-purple-400 mb-1">PLAYER 2 (Purple):</p>
+                        <p>• Bergerak: Panah Left <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300">←</kbd> / Right <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300">→</kbd></p>
+                        <p>• Lompat: Panah Up <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300">↑</kbd></p>
+                        <p>• Serang: <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300">L</kbd> / Enter</p>
+                    </div>
+                </div>
+                <button id="back-howto-btn" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl border border-slate-600 transition">KEMBALI</button>
+            </div>
+
+            <!-- PAUSE / SETTINGS MODAL -->
+            <div id="pause-modal" class="glass-panel p-6 rounded-3xl max-w-sm w-11/12 text-center border border-slate-700 shadow-2xl hidden">
+                <h2 class="text-3xl font-bold text-amber-400 font-horror mb-4">PERMAINAN DIISTIRAHATKAN</h2>
+                
+                <div class="flex flex-col gap-3 mb-6">
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                        <span class="text-slate-300"><i class="fa-solid fa-volume-high mr-2"></i>Efek Suara (SFX)</span>
+                        <input type="checkbox" id="sfx-toggle" checked class="w-4 h-4 accent-red-600 cursor-pointer">
+                    </div>
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                        <span class="text-slate-300"><i class="fa-solid fa-music mr-2"></i>Musik Latar</span>
+                        <input type="checkbox" id="music-toggle" checked class="w-4 h-4 accent-red-600 cursor-pointer">
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2.5">
+                    <button id="resume-btn" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-play"></i> LANJUTKAN
+                    </button>
+                    <button id="quit-btn" class="w-full bg-red-900/80 hover:bg-red-800 text-red-200 font-bold py-2.5 rounded-xl border border-red-700/50 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-right-from-bracket"></i> KELUAR KE MENU
+                    </button>
+                </div>
+            </div>
+
+            <!-- GAME OVER MODAL -->
+            <div id="gameover-modal" class="glass-panel p-6 rounded-3xl max-w-sm w-11/12 text-center border border-red-800 shadow-2xl hidden">
+                <h2 class="text-3xl font-extrabold text-red-500 font-horror mb-2">GAME OVER</h2>
+                <p class="text-sm text-slate-300 mb-4">Pocong telah menguasai malam...</p>
+                <p class="text-xs text-slate-400 mb-6">Skor Akhir: <span id="final-score" class="text-yellow-400 font-bold text-base">0</span></p>
+                <div class="flex flex-col gap-2">
+                    <button id="restart-btn" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition">COBA LAGI</button>
+                    <button id="gameover-quit-btn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 rounded-xl border border-slate-700 transition">MENU UTAMA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAME ENGINE CODE -->
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Elements
+        const modalOverlay = document.getElementById('modal-overlay');
+        const menuModal = document.getElementById('menu-modal');
+        const howtoModal = document.getElementById('howto-modal');
+        const pauseModal = document.getElementById('pause-modal');
+        const gameoverModal = document.getElementById('gameover-modal');
+        const hudOverlay = document.getElementById('hud-overlay');
+        const mobileControls = document.getElementById('mobile-controls');
+        const p2Hud = document.getElementById('p2-hud');
+
+        let isMultiplayer = false;
+        let isGameRunning = false;
+        let isPaused = false;
+        let score = 0;
+        let keys = {};
+        let animationFrameId = null;
+
+        // Canvas Responsive Resize
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Player Class
+        class Player {
+            constructor(x, color, controls, id) {
+                this.id = id;
+                this.x = x;
+                this.y = canvas.height - 130;
+                this.width = 35;
+                this.height = 50;
+                this.color = color;
+                this.vx = 0;
+                this.vy = 0;
+                this.speed = 5;
+                this.jumpPower = -12;
+                this.gravity = 0.6;
+                this.grounded = false;
+                this.hp = 100;
+                this.maxHp = 100;
+                this.controls = controls;
+                this.facing = 'right';
+            }
+
+            update() {
+                if (this.hp <= 0) return;
+
+                // Horizontal Movement
+                if (keys[this.controls.left]) {
+                    this.vx = -this.speed;
+                    this.facing = 'left';
+                } else if (keys[this.controls.right]) {
+                    this.vx = this.speed;
+                    this.facing = 'right';
+                } else {
+                    this.vx = 0;
+                }
+
+                // Jump
+                if (keys[this.controls.jump] && this.grounded) {
+                    this.vy = this.jumpPower;
+                    this.grounded = false;
+                }
+
+                // Apply Gravity
+                this.vy += this.gravity;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Floor Collision
+                const floorY = canvas.height - 80;
+                if (this.y + this.height >= floorY) {
+                    this.y = floorY - this.height;
+                    this.vy = 0;
+                    this.grounded = true;
+                }
+
+                // Canvas Boundaries
+                if (this.x < 0) this.x = 0;
+                if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
+            }
+
+            draw() {
+                if (this.hp <= 0) return;
+
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                // Draw Eyes based on Direction
+                ctx.fillStyle = '#FFF';
+                let eyeOffsetX = this.facing === 'right' ? 22 : 6;
+                ctx.fillRect(this.x + eyeOffsetX, this.y + 10, 6, 6);
+            }
+
+            attack() {
+                bullets.push(new Bullet(
+                    this.facing === 'right' ? this.x + this.width : this.x,
+                    this.y + 20,
+                    this.facing === 'right' ? 10 : -10,
+                    this.color
+                ));
+            }
+        }
+
+        // Bullet Class
+        class Bullet {
+            constructor(x, y, speed, color) {
+                this.x = x;
+                this.y = y;
+                this.speed = speed;
+                this.radius = 4;
+                this.color = color;
+                this.markedForDeletion = false;
+            }
+
+            update() {
+                this.x += this.speed;
+                if (this.x < 0 || this.x > canvas.width) {
+                    this.markedForDeletion = true;
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        // Pocong Enemy Class
+        class Pocong {
+            constructor() {
+                this.x = canvas.width + Math.random() * 200;
+                this.y = canvas.height - 130;
+                this.width = 30;
+                this.height = 50;
+                this.speed = 1.5 + Math.random() * 1.5;
+                this.hopOffset = Math.random() * 100;
+                this.markedForDeletion = false;
+            }
+
+            update() {
+                this.x -= this.speed;
+                // Hop motion animation
+                this.y = (canvas.height - 130) + Math.abs(Math.sin((this.x + this.hopOffset) * 0.05)) * -15;
+
+                if (this.x + this.width < 0) {
+                    this.markedForDeletion = true;
+                }
+            }
+
+            draw() {
+                // Pocong Shroud Body
+                ctx.fillStyle = '#E2E8F0';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                // Pocong Head Tie
+                ctx.fillStyle = '#94A3B8';
+                ctx.fillRect(this.x + 10, this.y - 6, 10, 6);
+
+                // Face Area (Black) & Glowing Eyes
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.x + 5, this.y + 10, 20, 12);
+                ctx.fillStyle = '#EF4444';
+                ctx.fillRect(this.x + 8, this.y + 14, 4, 4);
+                ctx.fillRect(this.x + 18, this.y + 14, 4, 4);
+            }
+        }
+
+        // Game State Variables
+        let players = [];
+        let bullets = [];
+        let enemies = [];
+        let spawnTimer = 0;
+
+        function initGame(multiplayer = false) {
+            isMultiplayer = multiplayer;
+            isPaused = false;
+            score = 0;
+            spawnTimer = 0;
+            document.getElementById('score-val').innerText = score;
+
+            // Player Setup
+            players = [
+                new Player(100, '#06B6D4', { left: 'KeyA', right: 'KeyD', jump: 'KeyW', attack: 'KeyF' }, 1)
+            ];
+
+            if (isMultiplayer) {
+                players.push(
+                    new Player(160, '#A855F7', { left: 'ArrowLeft', right: 'ArrowRight', jump: 'ArrowUp', attack: 'KeyL' }, 2)
+                );
+                p2Hud.classList.remove('hidden');
+                p2Hud.classList.add('flex');
+            } else {
+                p2Hud.classList.add('hidden');
+                p2Hud.classList.remove('flex');
+            }
+
+            bullets = [];
+            enemies = [];
+
+            // UI Adjustments
+            modalOverlay.classList.add('hidden');
+            pauseModal.classList.add('hidden');
+            gameoverModal.classList.add('hidden');
+            hudOverlay.classList.remove('hidden');
+            
+            // Show touch controls on mobile devices
+            if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                mobileControls.classList.remove('hidden');
+            }
+
+            isGameRunning = true;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (!isGameRunning) return;
+
+            if (!isPaused) {
+                // Clear Screen
+                ctx.fillStyle = '#050508';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Draw Ground Background
+                ctx.fillStyle = '#1E293B';
+                ctx.fillRect(0, canvas.height - 80, canvas.width, 80);
+
+                // Update & Draw Players
+                players.forEach((p, idx) => {
+                    p.update();
+                    p.draw();
+
+                    // Update HUD
+                    const hpBar = document.getElementById(`p${idx + 1}-hp-bar`);
+                    const hpText = document.getElementById(`p${idx + 1}-hp-text`);
+                    if (hpBar && hpText) {
+                        const hpPercent = Math.max(0, (p.hp / p.maxHp) * 100);
+                        hpBar.style.width = `${hpPercent}%`;
+                        hpText.innerText = `${p.hp} / ${p.maxHp}`;
+                    }
+                });
+
+                // Enemy Spawning
+                spawnTimer++;
+                if (spawnTimer % 120 === 0) {
+                    enemies.push(new Pocong());
+                }
+
+                // Update & Draw Bullets
+                bullets.forEach((b) => {
+                    b.update();
+                    b.draw();
+                });
+
+                // Update & Draw Enemies
+                enemies.forEach((e) => {
+                    e.update();
+                    e.draw();
+
+                    // Collision: Bullet <-> Enemy
+                    bullets.forEach((b) => {
+                        if (!b.markedForDeletion && !e.markedForDeletion) {
+                            if (b.x > e.x && b.x < e.x + e.width && b.y > e.y && b.y < e.y + e.height) {
+                                b.markedForDeletion = true;
+                                e.markedForDeletion = true;
+                                score += 100;
+                                document.getElementById('score-val').innerText = score;
+                            }
+                        }
+                    });
+
+                    // Collision: Player <-> Enemy
+                    players.forEach((p) => {
+                        if (p.hp > 0 && !e.markedForDeletion) {
+                            if (p.x < e.x + e.width && p.x + p.width > e.x && p.y < e.y + e.height && p.y + p.height > e.y) {
+                                p.hp -= 10;
+                                e.markedForDeletion = true;
+                            }
+                        }
+                    });
+                });
+
+                // Filter out destroyed objects
+                bullets = bullets.filter(b => !b.markedForDeletion);
+                enemies = enemies.filter(e => !e.markedForDeletion);
+
+                // Check Defeat Conditions
+                const allDead = players.every(p => p.hp <= 0);
+                if (allDead) {
+                    isGameRunning = false;
+                    document.getElementById('final-score').innerText = score;
+                    modalOverlay.classList.remove('hidden');
+                    gameoverModal.classList.remove('hidden');
+                    return;
+                }
+            }
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function togglePause() {
+            if (!isGameRunning) return;
+            isPaused = !isPaused;
+            if (isPaused) {
+                modalOverlay.classList.remove('hidden');
+                pauseModal.classList.remove('hidden');
+            } else {
+                modalOverlay.classList.add('hidden');
+                pauseModal.classList.add('hidden');
+            }
+        }
+
+        function returnToMainMenu() {
+            isGameRunning = false;
+            isPaused = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+            // Hide Game Over & Pause, Show Main Menu
+            pauseModal.classList.add('hidden');
+            gameoverModal.classList.add('hidden');
+            howtoModal.classList.add('hidden');
+            hudOverlay.classList.add('hidden');
+            mobileControls.classList.add('hidden');
+            
+            menuModal.classList.remove('hidden');
+            modalOverlay.classList.remove('hidden');
+
+            // Clear Canvas
+            ctx.fillStyle = '#050508';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Event Listeners for Keyboard Controls
+        window.addEventListener('keydown', (e) => {
+            // Prevent scrolling on space / arrow keys
+            if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
+                e.preventDefault();
+            }
+
+            keys[e.code] = true;
+
+            // Shortcut ESC for Pause
+            if (e.code === 'Escape') {
+                togglePause();
+            }
+
+            // P1 Alternate Attack with Spacebar
+            if (e.code === 'Space' && players[0] && players[0].hp > 0 && isGameRunning && !isPaused) {
+                players[0].attack();
+            }
+
+            // Trigger attacks on key down
+            if (isGameRunning && !isPaused) {
+                players.forEach(p => {
+                    if (e.code === p.controls.attack && p.hp > 0) {
+                        p.attack();
+                    }
+                });
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        // Toggle Fullscreen Function
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => console.log(err));
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+
+        // UI Event Handlers
+        document.getElementById('start-solo-btn').addEventListener('click', () => {
+            menuModal.classList.add('hidden');
+            initGame(false);
+        });
+
+        document.getElementById('start-coop-btn').addEventListener('click', () => {
+            menuModal.classList.add('hidden');
+            initGame(true);
+        });
+
+        document.getElementById('how-to-play-btn').addEventListener('click', () => {
+            menuModal.classList.add('hidden');
+            howtoModal.classList.remove('hidden');
+        });
+
+        document.getElementById('back-howto-btn').addEventListener('click', () => {
+            howtoModal.classList.add('hidden');
+            menuModal.classList.remove('hidden');
+        });
+
+        document.getElementById('pause-btn').addEventListener('click', togglePause);
+        document.getElementById('resume-btn').addEventListener('click', togglePause);
+
+        document.getElementById('quit-btn').addEventListener('click', returnToMainMenu);
+        document.getElementById('gameover-quit-btn').addEventListener('click', returnToMainMenu);
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            gameoverModal.classList.add('hidden');
+            initGame(isMultiplayer);
+        });
+
+        // Fullscreen Bindings
+        document.getElementById('in-fullscreen-btn').addEventListener('click', toggleFullscreen);
+        document.getElementById('menu-fullscreen-btn').addEventListener('click', toggleFullscreen);
+
+        // Touch Control Binding for Mobile
+        const bindTouch = (id, key) => {
+            const btn = document.getElementById(id);
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+        };
+
+        bindTouch('btn-left', 'KeyA');
+        bindTouch('btn-right', 'KeyD');
+        bindTouch('btn-jump', 'KeyW');
+
+        document.getElementById('btn-attack').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (players[0] && players[0].hp > 0 && isGameRunning && !isPaused) {
+                players[0].attack();
+            }
+        });
+    </script>
+</body>
+</html>
